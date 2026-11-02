@@ -14,7 +14,7 @@ Open http://127.0.0.1:8765. Use an HTTP server rather than opening index.html di
 
 ## Supported input
 
-A single `\\begin{tikzpicture} ... \\end{tikzpicture}` with optional macro definitions before it. Basic drawing paths, shapes, colors, arrows, nodes and math labels were tested. This is a fixed TikZJax TeX environment, not a full TeX distribution. Full document preambles and `\\usepackage` are rejected. Additional libraries, PGFPlots, custom packages, external files, system fonts, shell escape and LuaLaTeX/XeLaTeX features are not supported by this app. No arbitrary package/library installation is provided. Unsupported TeX may fail or yield incomplete output.
+A single `\begin{tikzpicture} ... \end{tikzpicture}` with optional macro definitions before it. Basic drawing paths, shapes, colors, arrows, nodes and math labels were tested. This is a fixed TikZJax TeX environment, not a full TeX distribution. Full document preambles and `\usepackage` are rejected. Additional libraries, PGFPlots, custom packages, external files, system fonts, shell escape and LuaLaTeX/XeLaTeX features are not supported by this app. No arbitrary package/library installation is provided. Unsupported TeX may fail or yield incomplete output.
 
 Each render runs in a fresh sandboxed frame. The frame is discarded on completion, edits, errors or a 90-second timeout. Very complex or nonterminating TeX may block its browser process; a timeout cannot guarantee interruption of synchronous WASM. Export embeds used Computer Modern fonts as data URLs. Labels remain text, so SVG editors that ignore embedded fonts may substitute fonts.
 
