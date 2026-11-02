@@ -1,10 +1,16 @@
 // A fresh opaque-origin frame isolates the compiler and is discarded after each render.
 const fontsURL = 'https://tikzjax.com/v1/fonts.css';
-let started = false, finished = false;
+let started = false, finished = false, embeddedCSS = '';
+function dataURL(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  return 'data:font/ttf;base64,' + btoa(binary);
+}
 function fail() {
   if (finished) return;
   finished = true;
-  parent.postMessage({type:'error', message:'Could not render. Check TikZ syntax and supported features, and make sure you are online.'}, '*');
+  parent.postMessage({type:'error', message:'Could not render. Check TikZ syntax and supported features, try a simpler picture.'}, '*');
 }
 window.addEventListener('error', fail);
 window.addEventListener('unhandledrejection', fail);
@@ -12,9 +18,7 @@ async function exportSVG(svg) {
   const copy = svg.cloneNode(true);
   copy.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   // Keep every used Computer Modern font in the downloaded SVG itself.
-  const cssResponse = await fetch(fontsURL);
-  if (!cssResponse.ok) throw new Error('Font stylesheet unavailable');
-  const css = await cssResponse.text();
+  const css = embeddedCSS;
   const used = new Set();
   svg.querySelectorAll('*').forEach(el => {
     getComputedStyle(el).fontFamily.split(',').forEach(name => used.add(name.trim().replace(/["']/g, '')));
@@ -23,17 +27,7 @@ async function exportSVG(svg) {
     const family = rule.match(/font-family:\s*([^;]+)/)?.[1].trim().replace(/["']/g, '');
     return used.has(family);
   });
-  const embedded = await Promise.all(rules.map(async rule => {
-    const path = rule.match(/url\(['"]?([^)'"\s]+)['"]?\)/)?.[1];
-    if (!path) return rule;
-    const response = await fetch(new URL(path, fontsURL));
-    if (!response.ok) throw new Error('Font unavailable');
-    const data = await new Promise((resolve, reject) => {
-      const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject;
-      response.blob().then(blob => reader.readAsDataURL(blob), reject);
-    });
-    return rule.replace(/url\([^)]+\)/, `url("${data}")`);
-  }));
+  const embedded = rules;
   if (embedded.length) {
     const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
     style.textContent = embedded.join('\n'); copy.prepend(style);
@@ -48,7 +42,17 @@ async function exportSVG(svg) {
 window.addEventListener('message', async event => {
   if (event.source !== parent || event.data?.type !== 'render' || started) return;
   started = true;
-  const stylesheet = document.createElement('link'); stylesheet.rel = 'stylesheet'; stylesheet.href = fontsURL; document.head.append(stylesheet);
+  const resources = event.data.resources;
+  // The isolated renderer can only read the supplied bytes, never the network.
+  window.fetch = async input => {
+    const url = typeof input === 'string' ? input : input.url;
+    if (!Object.hasOwn(resources, url)) throw new Error('Resource not bundled');
+    return new Response(resources[url]);
+  };
+  embeddedCSS = new TextDecoder().decode(resources[fontsURL]).replace(/url\(['"]?([^)'"\s]+)['"]?\)/g, (_, path) => {
+    return `url("${dataURL(resources[new URL(path, fontsURL).href])}")`;
+  });
+  const stylesheet = document.createElement('style'); stylesheet.textContent = embeddedCSS; document.head.append(stylesheet);
   const picture = document.createElement('script'); picture.type = 'text/tikz'; picture.textContent = event.data.source; document.body.append(picture);
   const observer = new MutationObserver(async () => {
     const svg = document.querySelector('svg');
@@ -61,8 +65,8 @@ window.addEventListener('message', async event => {
     } catch { fail(); }
   });
   observer.observe(document.body, {childList:true, subtree:true});
-  const engine = document.createElement('script'); engine.src = 'https://tikzjax.com/v1/tikzjax.js';
+  const engine = document.createElement('script'); engine.textContent = new TextDecoder().decode(resources['https://tikzjax.com/v1/tikzjax.js']);
   engine.onerror = fail;
-  engine.onload = () => { try { Promise.resolve(window.onload()).catch(fail); } catch { fail(); } };
   document.head.append(engine);
+  try { Promise.resolve(window.onload()).catch(fail); } catch { fail(); }
 }, {once:true});

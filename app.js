@@ -3,16 +3,59 @@ const renderButton = document.querySelector('#render');
 const downloadButton = document.querySelector('#download');
 const status = document.querySelector('#status');
 const preview = document.querySelector('#preview');
-let frame, timer, svgText = '', previewURL;
+let frame, timer, svgText = '', previewURL, generation = 0;
+let bundlePromise;
+const ENGINE_CACHE = 'tikz-svg-engine-v1';
+const offlineStatus = document.querySelector('#offline-status');
+async function cachedResource(url) {
+  const cache = await caches.open(ENGINE_CACHE);
+  const cached = await cache.match(url);
+  if (cached) return cached;
+  const response = await fetch(url, {credentials:'omit'});
+  if (!response.ok) throw new Error('Resource unavailable');
+  await cache.put(url, response.clone());
+  return response;
+}
+async function loadBundle() {
+  const resources = {};
+  let completed = 0, next = 0;
+  const results = await Promise.allSettled(Array.from({length:6}, async () => {
+    while (next < REMOTE_ASSETS.length) {
+      const url = REMOTE_ASSETS[next++];
+      resources[url] = await (await cachedResource(url)).arrayBuffer();
+      completed++;
+      offlineStatus.textContent = `Caching rendering engine for offline use (${Math.floor(completed / REMOTE_ASSETS.length * 100)}%)`;
+    }
+  }));
+  if (results.some(result => result.status === 'rejected')) throw new Error('Offline download incomplete');
+  const runner = await (await fetch('runner.js')).text();
+  const existing = await navigator.serviceWorker.getRegistration();
+  if (!existing?.active) await navigator.serviceWorker.register('sw.js');
+  else navigator.serviceWorker.register('sw.js').catch(() => {});
+  await navigator.serviceWorker.ready;
+  // Wait until this page is controlled, so a reload also works offline.
+  if (!navigator.serviceWorker.controller) await new Promise(resolve => navigator.serviceWorker.addEventListener('controllerchange', resolve, {once:true}));
+  offlineStatus.textContent = 'Ready for offline use';
+  return {resources, runner};
+}
+function prepare() {
+  if (!bundlePromise) bundlePromise = loadBundle().catch(error => {
+    bundlePromise = null;
+    offlineStatus.textContent = 'Offline setup incomplete. Reconnect and click Render to retry.';
+    throw error;
+  });
+  return bundlePromise;
+}
+prepare().catch(() => {});
 function message(text, error = false) { status.textContent = text; status.classList.toggle('error', error); }
-function stop() { clearTimeout(timer); frame?.remove(); frame = null; renderButton.disabled = false; }
+function stop() { generation++; clearTimeout(timer); frame?.remove(); frame = null; renderButton.disabled = false; }
 function clearResult() {
   svgText = ''; downloadButton.disabled = true;
   if (previewURL) URL.revokeObjectURL(previewURL);
   previewURL = null; preview.replaceChildren();
 }
 code.addEventListener('input', () => { stop(); clearResult(); message('Code changed. Click Render.'); });
-renderButton.addEventListener('click', () => {
+renderButton.addEventListener('click', async () => {
   stop(); clearResult();
   const source = code.value.trim();
   if (!source.includes('\\begin{tikzpicture}') || !source.includes('\\end{tikzpicture}')) {
@@ -21,12 +64,17 @@ renderButton.addEventListener('click', () => {
   if (/\\(?:documentclass|usepackage)\b|\\(?:begin|end)\s*\{document\}/.test(source)) {
     message('Paste only the TikZ picture and macro definitions, without a document preamble.', true); return;
   }
-  message('Rendering… first load can take a moment.'); renderButton.disabled = true;
+  const attempt = generation;
+  message('Preparing renderer…'); renderButton.disabled = true;
+  let bundle;
+  try { bundle = await prepare(); } catch { if (attempt === generation) { stop(); message('Renderer unavailable. Complete offline setup while online, then retry.', true); } return; }
+  if (attempt !== generation) return;
+  message('Rendering…');
   frame = document.createElement('iframe');
   frame.sandbox = 'allow-scripts';
   frame.title = 'TikZ renderer';
-  frame.src = 'runner.html';
-  frame.addEventListener('load', () => frame?.contentWindow.postMessage({type:'render', source}, '*'), {once:true});
+  frame.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\' \'wasm-unsafe-eval\'; style-src \'unsafe-inline\'; font-src data:; img-src data:; connect-src \'none\'"></head><body><script>' + bundle.runner.replace(/<\/script/gi, '<\\/script') + '</script></body></html>';
+  frame.addEventListener('load', () => frame?.contentWindow.postMessage({type:'render', source, resources:bundle.resources}, '*'), {once:true});
   document.body.append(frame);
   timer = setTimeout(() => { stop(); message('Render timed out. Check your code, connection, or try a simpler picture.', true); }, 90000);
 });
