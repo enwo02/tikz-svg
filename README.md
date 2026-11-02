@@ -1,5 +1,9 @@
 # TikZ → SVG
 
+**[Use the app →](https://enwo02.github.io/tikz-svg/)**
+
+Paste your TikZ code, click **Render**, then **Download SVG**. On your first visit, stay online until **Ready for offline use** appears; afterward, the app works offline in the same browser.
+
 Minimal static website: paste one `tikzpicture`, click Render, download SVG. All compilation happens client-side using [TikZJax v1](https://tikzjax.com/). No backend, build step, npm packages or API keys.
 
 ## Run locally
