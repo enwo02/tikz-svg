@@ -1,6 +1,7 @@
 const code = document.querySelector('#code');
 const renderButton = document.querySelector('#render');
 const downloadButton = document.querySelector('#download');
+const downloadPngButton = document.querySelector('#download-png');
 const status = document.querySelector('#status');
 const preview = document.querySelector('#preview');
 let frame, timer, svgText = '', previewURL, generation = 0;
@@ -50,7 +51,7 @@ prepare().catch(() => {});
 function message(text, error = false) { status.textContent = text; status.classList.toggle('error', error); }
 function stop() { generation++; clearTimeout(timer); frame?.remove(); frame = null; renderButton.disabled = false; }
 function clearResult() {
-  svgText = ''; downloadButton.disabled = true;
+  svgText = ''; downloadButton.disabled = downloadPngButton.disabled = true;
   if (previewURL) URL.revokeObjectURL(previewURL);
   previewURL = null; preview.replaceChildren();
 }
@@ -89,11 +90,38 @@ window.addEventListener('message', event => {
   svgText = event.data.svg;
   previewURL = URL.createObjectURL(new Blob([svgText], {type:'image/svg+xml'}));
   const img = new Image(); img.alt = 'Rendered TikZ picture'; img.src = previewURL; preview.append(img);
-  stop(); downloadButton.disabled = false; message('Rendered. SVG ready to download.');
+  stop(); downloadButton.disabled = downloadPngButton.disabled = false; message('Rendered. SVG and PNG ready to download.');
 });
+function download(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a'); link.href = url; link.download = filename;
+  document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 downloadButton.addEventListener('click', () => {
   if (!svgText) return;
-  const url = URL.createObjectURL(new Blob([svgText], {type:'image/svg+xml;charset=utf-8'}));
-  const link = document.createElement('a'); link.href = url; link.download = 'tikz.svg';
-  document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  download(new Blob([svgText], {type:'image/svg+xml;charset=utf-8'}), 'tikz.svg');
+});
+downloadPngButton.addEventListener('click', async () => {
+  const img = preview.querySelector('img');
+  if (!img) return;
+  const attempt = generation;
+  downloadPngButton.disabled = true;
+  message('Preparing PNG…');
+  try {
+    await img.decode();
+    if (attempt !== generation) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    const png = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (attempt !== generation) return;
+    if (!png) throw new Error('PNG encoding failed');
+    download(png, 'tikz.png');
+    message('PNG ready to download.');
+  } catch {
+    if (attempt === generation) message('Could not create the PNG. Try a smaller picture.', true);
+  } finally {
+    if (attempt === generation) downloadPngButton.disabled = false;
+  }
 });
