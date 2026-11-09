@@ -30,14 +30,37 @@ async function loadBundle() {
   }));
   if (results.some(result => result.status === 'rejected')) throw new Error('Offline download incomplete');
   const runner = await (await fetch('runner.js')).text();
-  const existing = await navigator.serviceWorker.getRegistration();
-  if (!existing?.active) await navigator.serviceWorker.register('sw.js');
-  else navigator.serviceWorker.register('sw.js').catch(() => {});
-  await navigator.serviceWorker.ready;
-  // Wait until this page is controlled, so a reload also works offline.
-  if (!navigator.serviceWorker.controller) await new Promise(resolve => navigator.serviceWorker.addEventListener('controllerchange', resolve, {once:true}));
-  offlineStatus.textContent = 'Ready for offline use';
+  // Offline installation must never hold a ready compiler hostage.
+  offlineStatus.textContent = 'Renderer ready. Finishing offline setup…';
+  finishOfflineSetup();
   return {resources, runner};
+}
+async function finishOfflineSetup() {
+  let timeout, onControl;
+  const serviceWorker = navigator.serviceWorker;
+  try {
+    if (!serviceWorker) throw new Error('Service workers unavailable');
+    await Promise.race([
+      (async () => {
+        await serviceWorker.register('sw.js');
+        await serviceWorker.ready;
+        if (!serviceWorker.controller) await new Promise(resolve => {
+          onControl = () => { if (serviceWorker.controller) resolve(); };
+          serviceWorker.addEventListener('controllerchange', onControl);
+          onControl(); // Close the race between checking and subscribing.
+        });
+      })(),
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('Offline setup timed out')), 15000);
+      })
+    ]);
+    offlineStatus.textContent = 'Ready for offline use';
+  } catch {
+    offlineStatus.textContent = 'Renderer ready. Offline setup unavailable; keep this page online.';
+  } finally {
+    clearTimeout(timeout);
+    if (onControl) serviceWorker.removeEventListener('controllerchange', onControl);
+  }
 }
 function prepare() {
   if (!bundlePromise) bundlePromise = loadBundle().catch(error => {

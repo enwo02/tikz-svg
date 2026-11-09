@@ -32,6 +32,8 @@ Each render runs in a fresh sandboxed frame. The frame is discarded on completio
 
 Publish all application files (`index.html`, `app.js`, `assets.js`, `runner.js`, `sw.js`) at the repository root. In **Settings → Pages**, select **Deploy from a branch**, branch **main**, folder **/(root)** and Save. No Actions workflow or build is needed. Relative paths support project Pages URLs.
 
+Offline service-worker setup runs in the background and times out after 15 seconds. It cannot block rendering after compiler resources finish loading.
+
 ## Local verification
 
 Browser-verified on 2026-11-09: the Gantt example renders with both “Präsentation” labels, coloured translucent bars, clipped holiday hatching, week markers, multiline dates and milestone arrows. SVG and PNG downloads both succeed. Shell cache v5 refreshes existing offline installations to include the fix.
