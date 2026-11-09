@@ -18,6 +18,10 @@ Open http://127.0.0.1:8765. Use an HTTP server rather than opening index.html di
 
 ## Supported input
 
+German text (`ä ö ü Ä Ö Ü ß`, including decomposed umlauts) is converted to equivalent TeX accents before compilation. Explicit TeX accents remain supported. This does not provide general Unicode support. The runner also corrects TikZJax v1's TFM parser to include the final character in each font; without this correction, the umlaut accent fails with “Could not find font metric for 127”. The correction targets the cached v1 engine and requires no extra network resources.
+
+`gantt-example.tex` is a complete example with German labels, RGB colours, loops, custom styles, opacity, scoped clipping, multiline labels and curved arrows. Paste it unchanged into the app.
+
 A single `\begin{tikzpicture} ... \end{tikzpicture}` with optional macro definitions before it. Basic drawing paths, shapes, colors, arrows, nodes and math labels were tested. This is a fixed TikZJax TeX environment, not a full TeX distribution. Full document preambles and `\usepackage` are rejected. Additional libraries, PGFPlots, custom packages, external files, system fonts, shell escape and LuaLaTeX/XeLaTeX features are not supported by this app. No arbitrary package/library installation is provided. Unsupported TeX may fail or yield incomplete output.
 
 Each render runs in a fresh sandboxed frame with network access blocked by Content Security Policy. The parent supplies cached engine, WASM, TeX core and font bytes through postMessage. The renderer’s fetch shim serves only those supplied resources. A service worker caches the app shell; Cache Storage retains the full renderer asset list. It only reports offline readiness after all resources are saved and the page is controlled by the service worker. Failed setup can be retried by clicking Render; partial downloads are reused. No pasted code or rendered SVG is stored in these caches.
@@ -29,6 +33,8 @@ Each render runs in a fresh sandboxed frame. The frame is discarded on completio
 Publish all application files (`index.html`, `app.js`, `assets.js`, `runner.js`, `sw.js`) at the repository root. In **Settings → Pages**, select **Deploy from a branch**, branch **main**, folder **/(root)** and Save. No Actions workflow or build is needed. Relative paths support project Pages URLs.
 
 ## Local verification
+
+Browser-verified on 2026-11-09: the Gantt example renders with both “Präsentation” labels, coloured translucent bars, clipped holiday hatching, week markers, multiline dates and milestone arrows. SVG and PNG downloads both succeed. Shell cache v5 refreshes existing offline installations to include the fix.
 
 Browser-tested in the Codex in-app browser on 2026-11-02:
 - Default plot with arrowheads, color, curve and math labels renders.

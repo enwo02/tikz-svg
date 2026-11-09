@@ -7,10 +7,10 @@ function dataURL(buffer) {
   for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
   return 'data:font/ttf;base64,' + btoa(binary);
 }
-function fail() {
+function fail(error) {
   if (finished) return;
   finished = true;
-  parent.postMessage({type:'error', message:'Could not render. Check TikZ syntax and supported features, try a simpler picture.'}, '*');
+  parent.postMessage({type:'error', message:'Could not render: ' + (error?.reason?.message || error?.message || error || 'Unknown error')}, '*');
 }
 window.addEventListener('error', fail);
 window.addEventListener('unhandledrejection', fail);
@@ -53,7 +53,11 @@ window.addEventListener('message', async event => {
     return `url("${dataURL(resources[new URL(path, fontsURL).href])}")`;
   });
   const stylesheet = document.createElement('style'); stylesheet.textContent = embeddedCSS; document.head.append(stylesheet);
-  const picture = document.createElement('script'); picture.type = 'text/tikz'; picture.textContent = event.data.source; document.body.append(picture);
+  // TikZJax v1's TeX input is not UTF-8. Preserve German labels using
+  // equivalent TeX accents; NFC also accepts pasted decomposed umlauts.
+  const german = {ä:'\\"{a}', ö:'\\"{o}', ü:'\\"{u}', Ä:'\\"{A}', Ö:'\\"{O}', Ü:'\\"{U}', ß:'{\\ss}'};
+  const source = event.data.source.normalize('NFC').replace(/[äöüÄÖÜß]/g, character => german[character]);
+  const picture = document.createElement('script'); picture.type = 'text/tikz'; picture.textContent = source; document.body.append(picture);
   const observer = new MutationObserver(async () => {
     const svg = document.querySelector('svg');
     if (!svg || finished) return;
@@ -65,8 +69,15 @@ window.addEventListener('message', async event => {
     } catch { fail(); }
   });
   observer.observe(document.body, {childList:true, subtree:true});
-  const engine = document.createElement('script'); engine.textContent = new TextDecoder().decode(resources['https://tikzjax.com/v1/tikzjax.js']);
+  const engine = document.createElement('script');
+  // TFM's final character code is inclusive. Upstream v1 omits it, so
+  // Computer Modern's umlaut (127) fails even with explicit TeX syntax.
+  const upstream = new TextDecoder().decode(resources['https://tikzjax.com/v1/tikzjax.js']);
+  engine.textContent = upstream.replace(
+    'A<this.largest_character_code;A++)this.process_char(A)',
+    'A<=this.largest_character_code;A++)this.process_char(A)'
+  );
   engine.onerror = fail;
   document.head.append(engine);
-  try { Promise.resolve(window.onload()).catch(fail); } catch { fail(); }
+  try { Promise.resolve(window.onload()).catch(fail); } catch (error) { fail(error); }
 }, {once:true});
