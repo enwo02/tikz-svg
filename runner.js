@@ -97,6 +97,20 @@ window.addEventListener('message', async event => {
     /aae443f0:\{[^}]*?\b22:181,/,
     match => match.replace('22:181,', '22:185,')
   ).replace(
+    'pushColor(A){this.colorStack.push(this.color),this.color=A}',
+    // The TeX driver emits a black SVG group immediately before the
+    // DVI color push. Use the resolved color on that group so nested
+    // text, math rules and accent dots all inherit it.
+    `pushColor(A){
+      this.colorStack.push(this.color);
+      this.color=A;
+      const last=this.pageContent.length-1;
+      const placeholder='<g fill="black">';
+      if(this.svgDepth&&this.pageContent[last]?.endsWith(placeholder)){
+        this.pageContent[last]=this.pageContent[last].slice(0,-placeholder.length)+'<g fill="'+A+'">';
+      }
+    }`
+  ).replace(
     'r+=`&#${lA[i][B]};`',
     // TikZJax can put the accent at the end of an existing text run.
     // Keep its position from the TeX font metrics even in that case.
