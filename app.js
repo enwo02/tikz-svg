@@ -79,14 +79,25 @@ function clearResult() {
   previewURL = null; preview.replaceChildren();
 }
 code.addEventListener('input', () => { stop(); clearResult(); message('Code changed. Click Render.'); });
+function extractPicture(input) {
+  // Skip TeX comments and escaped characters while locating the delimiters.
+  const tokens = /%[^\r\n]*|\\(begin|end)\s*\{tikzpicture\}|\\[\s\S]/g;
+  const markers = [...input.matchAll(tokens)].filter(token => token[1]);
+  if (markers.length !== 2 || markers[0][1] !== 'begin' || markers[1][1] !== 'end') return null;
+  const [start, end] = markers;
+  const prefix = input.slice(0, start.index);
+  const suffix = input.slice(end.index + end[0].length);
+  const preamble = prefix.replace(/\\[\s\S]|%[^\r\n]*/g, token => token.startsWith('%') ? '' : token).trim();
+  // Keep the optional macro preamble for standalone snippets.
+  const standalone = !suffix.replace(/%[^\r\n]*/g, '').trim() &&
+    (!preamble || (/^\\/.test(preamble) && !/\\(?:documentclass|usepackage|begin|end)\b/.test(preamble)));
+  return input.slice(standalone ? 0 : start.index, end.index + end[0].length).trim();
+}
 renderButton.addEventListener('click', async () => {
   stop(); clearResult();
-  const source = code.value.trim();
-  if (!source.includes('\\begin{tikzpicture}') || !source.includes('\\end{tikzpicture}')) {
-    message('Paste a complete \\begin{tikzpicture} … \\end{tikzpicture}.', true); return;
-  }
-  if (/\\(?:documentclass|usepackage)\b|\\(?:begin|end)\s*\{document\}/.test(source)) {
-    message('Paste only the TikZ picture and macro definitions, without a document preamble.', true); return;
+  const source = extractPicture(code.value);
+  if (source === null) {
+    message('Paste exactly one complete \\begin{tikzpicture} … \\end{tikzpicture}.', true); return;
   }
   const attempt = generation;
   message('Preparing renderer…'); renderButton.disabled = true;
