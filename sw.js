@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'tikz-svg-shell-v11';
+const SHELL_CACHE = 'tikz-svg-shell-v13';
 const SHELL = ['./', 'index.html', 'app.js', 'assets.js', 'runner.js'];
 self.addEventListener('install', event => {
   event.waitUntil((async () => {

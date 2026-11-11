@@ -135,6 +135,39 @@ downloadButton.addEventListener('click', () => {
   if (!svgText) return;
   download(new Blob([svgText], {type:'image/svg+xml;charset=utf-8'}), 'tikz.svg');
 });
+const pngDpi = 300;
+
+function setPngResolution(png) {
+  // PNG stores physical resolution as pixels per metre in a pHYs chunk.
+  const chunk = new Uint8Array(21);
+  const fields = new DataView(chunk.buffer);
+  const pixelsPerMetre = Math.round(pngDpi / 0.0254);
+  fields.setUint32(0, 9);
+  chunk.set([112, 72, 89, 115], 4); // pHYs
+  fields.setUint32(8, pixelsPerMetre);
+  fields.setUint32(12, pixelsPerMetre);
+  chunk[16] = 1;
+  let crc = 0xffffffff;
+  for (const byte of chunk.subarray(4, 17)) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++) {
+      crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+    }
+  }
+  fields.setUint32(17, crc ^ 0xffffffff);
+
+  return png.arrayBuffer().then(buffer => {
+    const data = new DataView(buffer);
+    const parts = [png.slice(0, 33), chunk]; // Signature and IHDR precede pHYs.
+    for (let offset = 33; offset < data.byteLength;) {
+      const end = offset + 12 + data.getUint32(offset);
+      if (data.getUint32(offset + 4) !== 0x70485973) parts.push(png.slice(offset, end));
+      offset = end;
+    }
+    return new Blob(parts, {type: 'image/png'});
+  });
+}
+
 downloadPngButton.addEventListener('click', async () => {
   const img = preview.querySelector('img');
   if (!img) return;
@@ -145,13 +178,15 @@ downloadPngButton.addEventListener('click', async () => {
     await img.decode();
     if (attempt !== generation) return;
     const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    canvas.getContext('2d').drawImage(img, 0, 0);
+    const scale = pngDpi / 96; // CSS pixels per inch.
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
     const png = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-    if (attempt !== generation) return;
     if (!png) throw new Error('PNG encoding failed');
-    download(png, 'tikz.png');
+    const exportPng = await setPngResolution(png);
+    if (attempt !== generation) return;
+    download(exportPng, 'tikz.png');
     message('PNG ready to download.');
   } catch {
     if (attempt === generation) message('Could not create the PNG. Try a smaller picture.', true);
