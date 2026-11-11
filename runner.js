@@ -92,6 +92,11 @@ window.addEventListener('message', async event => {
     'A<this.largest_character_code;A++)this.process_char(A)',
     'A<=this.largest_character_code;A++)this.process_char(A)'
   ).replace(
+    // In the bundled BaKoMa math italic fonts, U+00B5 draws theta
+    // and U+00B9 draws mu. TeX's math italic slot 22 is mu.
+    /aae443f0:\{[^}]*?\b22:181,/,
+    match => match.replace('22:181,', '22:185,')
+  ).replace(
     'r+=`&#${lA[i][B]};`',
     // TikZJax can put the accent at the end of an existing text run.
     // Keep its position from the TeX font metrics even in that case.
