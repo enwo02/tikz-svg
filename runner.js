@@ -32,23 +32,20 @@ async function exportSVG(svg) {
     const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
     style.textContent = embedded.join('\n'); copy.prepend(style);
   }
-  // TikZJax emits U+00A8 at TeX's accent position, but its bundled
-  // Computer Modern fonts draw a different glyph there. Draw the dots
-  // in SVG so the accent is identical in the preview and both downloads.
-  for (const accent of copy.querySelectorAll('text')) {
-    if (accent.textContent !== '¨' || !accent.style.fontFamily.startsWith('cm')) continue;
-    const x = Number(accent.getAttribute('x'));
-    const y = Number(accent.getAttribute('y'));
-    const size = Number(accent.getAttribute('font-size'));
-    if (![x, y, size].every(Number.isFinite) || size <= 0) continue;
-    const dots = [0.16, 0.34].map(offset => {
+  for (const accent of copy.querySelectorAll('tspan[data-tex-umlaut]')) {
+    const label = accent.parentElement;
+    const size = Number(label.getAttribute('font-size'));
+    const x = Number(label.getAttribute('x')) + Number(accent.getAttribute('data-tex-umlaut'));
+    const y = Number(label.getAttribute('y'));
+    for (const offset of [0.16, 0.34]) {
       const dot = document.createElementNS(copy.namespaceURI, 'circle');
       dot.setAttribute('cx', x + size * offset);
       dot.setAttribute('cy', y - size * 0.62);
       dot.setAttribute('r', size * 0.05);
-      return dot;
-    });
-    accent.replaceWith(...dots);
+      label.before(dot);
+    }
+    accent.remove();
+    if (!label.textContent) label.remove();
   }
   // Display/export only passive SVG, even if TeX specials inserted markup.
   copy.querySelectorAll('script, foreignObject, iframe, object, embed, a').forEach(el => el.remove());
@@ -94,6 +91,14 @@ window.addEventListener('message', async event => {
   engine.textContent = upstream.replace(
     'A<this.largest_character_code;A++)this.process_char(A)',
     'A<=this.largest_character_code;A++)this.process_char(A)'
+  ).replace(
+    'r+=`&#${lA[i][B]};`',
+    // TikZJax can put the accent at the end of an existing text run.
+    // Keep its position from the TeX font metrics even in that case.
+    `if(this.svgDepth&&B===127&&lA[i][B]===168){
+      const offset=(e-o.width)*this.font.scaleFactor/1048576*this.pointsPerDviUnit;
+      r+='<tspan data-tex-umlaut="'+offset+'"></tspan>';
+    }else r+=\`&#\${lA[i][B]};\``
   );
   engine.onerror = fail;
   document.head.append(engine);
