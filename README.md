@@ -30,7 +30,7 @@ Each render runs in a fresh sandboxed frame. The frame is discarded on completio
 
 ## GitHub Pages
 
-Publish all application files (`index.html`, `app.js`, `assets.js`, `runner.js`, `sw.js`) at the repository root. In **Settings → Pages**, select **Deploy from a branch**, branch **main**, folder **/(root)** and Save. No Actions workflow or build is needed. Relative paths support project Pages URLs.
+In **Settings → Pages**, set **Source** to **GitHub Actions**. Pushes to `main` then deploy the app and stamp it with the commit ID, shown in the bottom-right corner. The browser installs each release's app files together for offline use. If a new release arrives in an open tab, **Update available · Reload** loads it and restores the current TikZ input.
 
 Offline service-worker setup runs in the background and times out after 15 seconds. It cannot block rendering after compiler resources finish loading.
 

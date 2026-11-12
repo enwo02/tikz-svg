@@ -1,5 +1,9 @@
-const SHELL_CACHE = 'tikz-svg-shell-v17';
-const SHELL = ['./', 'index.html', 'app.js', 'assets.js', 'runner.js'];
+const RELEASE = '__TIKZ_RELEASE__';
+const SHELL_CACHE = `tikz-svg-shell-${RELEASE}`;
+const SHELL = ['./', 'index.html', ...['app.js', 'assets.js', 'runner.js'].map(path => `${path}?v=${RELEASE}`)];
+self.addEventListener('message', event => {
+  if (event.data === 'app-release') event.source?.postMessage({release: RELEASE});
+});
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(SHELL_CACHE);
@@ -20,6 +24,11 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || url.origin !== self.location.origin || !url.href.startsWith(self.registration.scope)) return;
   event.respondWith((async () => {
     const cache = await caches.open(SHELL_CACHE);
-    return await cache.match(event.request) || await fetch(event.request);
+    const path = url.pathname;
+    const root = new URL(self.registration.scope).pathname;
+    const request = event.request.mode === 'navigate' && (path === root || path === root + 'index.html')
+      ? './'
+      : event.request;
+    return await cache.match(request) || await fetch(event.request);
   })());
 });

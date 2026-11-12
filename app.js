@@ -1,4 +1,38 @@
 const code = document.querySelector('#code');
+const release = document.querySelector('meta[name="app-release"]').content;
+document.querySelector('#app-version').textContent = release.startsWith('__') ? 'local' : release.slice(0, 7);
+const updateButton = document.querySelector('#app-update');
+const updateDraftKey = 'tikz-svg-update-draft';
+try {
+  const savedDraft = sessionStorage.getItem(updateDraftKey);
+  if (savedDraft !== null) {
+    code.value = savedDraft;
+    sessionStorage.removeItem(updateDraftKey);
+  }
+} catch {
+  // Storage can be disabled in browser privacy settings.
+}
+updateButton.addEventListener('click', () => {
+  try {
+    sessionStorage.setItem(updateDraftKey, code.value);
+  } catch {
+    if (!confirm('Reloading will discard the current TikZ input. Continue?')) return;
+  }
+  location.reload();
+});
+const serviceWorker = navigator.serviceWorker;
+const workerRegistration = serviceWorker?.register('sw.js', {updateViaCache: 'none'});
+workerRegistration?.catch(() => {});
+function checkControllerRelease() {
+  serviceWorker?.controller?.postMessage('app-release');
+}
+serviceWorker?.addEventListener('controllerchange', checkControllerRelease);
+serviceWorker?.addEventListener('message', event => {
+  if (event.source === serviceWorker.controller && typeof event.data?.release === 'string') {
+    updateButton.hidden = event.data.release === release;
+  }
+});
+checkControllerRelease();
 const renderButton = document.querySelector('#render');
 const downloadButton = document.querySelector('#download');
 const downloadPngButton = document.querySelector('#download-png');
@@ -30,7 +64,7 @@ async function loadBundle() {
     }
   }));
   if (results.some(result => result.status === 'rejected')) throw new Error('Offline download incomplete');
-  const runner = await (await fetch('runner.js')).text();
+  const runner = await (await fetch(`runner.js?v=${release}`)).text();
   // Offline installation must never hold a ready compiler hostage.
   offlineStatus.textContent = 'Renderer ready. Finishing offline setup…';
   finishOfflineSetup();
@@ -38,12 +72,11 @@ async function loadBundle() {
 }
 async function finishOfflineSetup() {
   let timeout, onControl;
-  const serviceWorker = navigator.serviceWorker;
   try {
     if (!serviceWorker) throw new Error('Service workers unavailable');
     await Promise.race([
       (async () => {
-        await serviceWorker.register('sw.js');
+        await workerRegistration;
         await serviceWorker.ready;
         if (!serviceWorker.controller) await new Promise(resolve => {
           onControl = () => { if (serviceWorker.controller) resolve(); };
