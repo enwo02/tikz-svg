@@ -2,6 +2,7 @@ const code = document.querySelector('#code');
 const renderButton = document.querySelector('#render');
 const downloadButton = document.querySelector('#download');
 const downloadPngButton = document.querySelector('#download-png');
+const pngDpiSelect = document.querySelector('#png-dpi');
 const status = document.querySelector('#status');
 const preview = document.querySelector('#preview');
 let frame, timer, svgText = '', previewURL, generation = 0;
@@ -228,9 +229,7 @@ downloadButton.addEventListener('click', () => {
   if (!svgText) return;
   download(new Blob([svgText], {type:'image/svg+xml;charset=utf-8'}), 'tikz.svg');
 });
-const pngDpi = 300;
-
-function setPngResolution(png) {
+function setPngResolution(png, pngDpi) {
   // PNG stores physical resolution as pixels per metre in a pHYs chunk.
   const chunk = new Uint8Array(21);
   const fields = new DataView(chunk.buffer);
@@ -265,6 +264,7 @@ downloadPngButton.addEventListener('click', async () => {
   const img = preview.querySelector('img');
   if (!img) return;
   const attempt = generation;
+  const pngDpi = Number(pngDpiSelect.value);
   downloadPngButton.disabled = true;
   message('Preparing PNG…');
   try {
@@ -277,12 +277,12 @@ downloadPngButton.addEventListener('click', async () => {
     canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
     const png = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
     if (!png) throw new Error('PNG encoding failed');
-    const exportPng = await setPngResolution(png);
+    const exportPng = await setPngResolution(png, pngDpi);
     if (attempt !== generation) return;
     download(exportPng, 'tikz.png');
     message('PNG ready to download.');
   } catch {
-    if (attempt === generation) message('Could not create the PNG. Try a smaller picture.', true);
+    if (attempt === generation) message('Could not create the PNG. Try a lower DPI or a smaller picture.', true);
   } finally {
     if (attempt === generation) downloadPngButton.disabled = false;
   }
