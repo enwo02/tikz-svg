@@ -79,6 +79,96 @@ function clearResult() {
   previewURL = null; preview.replaceChildren();
 }
 code.addEventListener('input', () => { stop(); clearResult(); message('Code changed. Click Render.'); });
+const historyDialog = document.querySelector('#history-dialog');
+const historyList = document.querySelector('#history-list');
+const historyURLs = [];
+let historyDatabase;
+
+function openHistory() {
+  if (!historyDatabase) {
+    historyDatabase = new Promise((resolve, reject) => {
+      const request = indexedDB.open('tikz-svg-history', 1);
+      request.onupgradeneeded = () => request.result.createObjectStore('graphs', {autoIncrement:true});
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    }).catch(error => {
+      historyDatabase = null;
+      throw error;
+    });
+  }
+  return historyDatabase;
+}
+
+async function saveGraph(graph) {
+  const db = await openHistory();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction('graphs', 'readwrite');
+    transaction.oncomplete = resolve;
+    transaction.onabort = () => reject(transaction.error);
+    transaction.objectStore('graphs').add(graph);
+  });
+}
+
+function svgURL(svg) {
+  return URL.createObjectURL(new Blob([svg], {type:'image/svg+xml'}));
+}
+
+function showGraph(svg) {
+  clearResult();
+  svgText = svg;
+  previewURL = svgURL(svg);
+  const img = new Image();
+  img.alt = 'Rendered TikZ picture';
+  img.src = previewURL;
+  preview.append(img);
+  downloadButton.disabled = downloadPngButton.disabled = false;
+}
+
+document.querySelector('#history').addEventListener('click', async () => {
+  historyList.textContent = 'Loading…';
+  historyDialog.showModal();
+  try {
+    const db = await openHistory();
+    const request = db.transaction('graphs').objectStore('graphs').openCursor(null, 'prev');
+    request.onerror = () => {
+      if (historyDialog.open) historyList.textContent = 'Could not load history.';
+    };
+    request.onsuccess = () => {
+      if (!historyDialog.open) return;
+      const cursor = request.result;
+      if (!cursor) {
+        if (!historyList.childElementCount) historyList.textContent = 'No saved graphs yet.';
+        return;
+      }
+      if (!historyList.childElementCount) historyList.replaceChildren();
+      const graph = cursor.value;
+      const button = document.createElement('button');
+      const thumbnail = new Image();
+      thumbnail.alt = '';
+      thumbnail.loading = 'lazy';
+      thumbnail.src = svgURL(graph.svg);
+      historyURLs.push(thumbnail.src);
+      button.append(thumbnail, new Date(graph.createdAt).toLocaleString());
+      button.addEventListener('click', () => {
+        stop();
+        code.value = graph.code;
+        showGraph(graph.svg);
+        message('Graph restored.');
+        historyDialog.close();
+      });
+      historyList.append(button);
+      cursor.continue();
+    };
+  } catch {
+    if (historyDialog.open) historyList.textContent = 'Could not load history.';
+  }
+});
+
+historyDialog.addEventListener('close', () => {
+  for (const url of historyURLs.splice(0)) URL.revokeObjectURL(url);
+  historyList.replaceChildren();
+});
+
 function extractPicture(input) {
   // Skip TeX comments and escaped characters while locating the delimiters.
   const tokens = /%[^\r\n]*|\\(begin|end)\s*\{tikzpicture\}|\\[\s\S]/g;
@@ -121,10 +211,13 @@ window.addEventListener('message', event => {
   if (parsed.querySelector('parsererror') || parsed.documentElement.localName !== 'svg') {
     stop(); message('The renderer returned an invalid SVG.', true); return;
   }
-  svgText = event.data.svg;
-  previewURL = URL.createObjectURL(new Blob([svgText], {type:'image/svg+xml'}));
-  const img = new Image(); img.alt = 'Rendered TikZ picture'; img.src = previewURL; preview.append(img);
-  stop(); downloadButton.disabled = downloadPngButton.disabled = false; message('Rendered. SVG and PNG ready to download.');
+  stop();
+  showGraph(event.data.svg);
+  message('Rendered. SVG and PNG ready to download.');
+  const attempt = generation;
+  saveGraph({code:code.value, svg:svgText, createdAt:Date.now()}).catch(() => {
+    if (generation === attempt) message('Rendered, but history could not be saved.', true);
+  });
 });
 function download(blob, filename) {
   const url = URL.createObjectURL(blob);

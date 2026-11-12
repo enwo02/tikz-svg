@@ -4,7 +4,15 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>TikZ → SVG</title>
 <style>
-*{box-sizing:border-box}body{margin:40px auto;padding:0 20px;max-width:940px;font:16px/1.5 system-ui,sans-serif;color:#202124;background:#fafafa}h1{font-size:28px;letter-spacing:-1px;margin:0}p{color:#62666b;margin:8px 0 24px}label{display:block;margin-bottom:8px;font-weight:600}textarea{display:block;width:100%;min-height:260px;resize:vertical;padding:16px;border:1px solid #cbd0d6;border-radius:6px;background:white;font:14px/1.6 ui-monospace,monospace;tab-size:2}textarea:focus{outline:2px solid #2668d8;outline-offset:2px}.actions{display:flex;gap:10px;margin:16px 0;align-items:center;flex-wrap:wrap}button{font:inherit;padding:9px 16px;border:1px solid #cbd0d6;border-radius:6px;background:white;cursor:pointer}button:first-child{background:#235fca;color:white;border-color:#235fca}button:disabled{opacity:.45;cursor:default}#status{font-size:14px;color:#62666b}#status.error{color:#b42318}#preview{background:white;border:1px solid #dfe2e6;border-radius:6px;min-height:200px;display:flex;align-items:center;justify-content:center;overflow:auto;padding:24px}#preview img{max-width:100%;height:auto}#preview span{color:#8a8f96;font-size:14px}details{margin:20px 0;font-size:14px;color:#62666b}details p{margin:10px 0}iframe{display:none}a{color:#235fca}@media(max-width:600px){body{margin:24px auto}textarea{min-height:300px}}
+*{box-sizing:border-box}body{margin:40px auto;padding:0 20px;max-width:940px;font:16px/1.5 system-ui,sans-serif;color:#202124;background:#fafafa}h1{font-size:28px;letter-spacing:-1px;margin:0}p{color:#62666b;margin:8px 0 24px}label{display:block;margin-bottom:8px;font-weight:600}textarea{display:block;width:100%;min-height:260px;resize:vertical;padding:16px;border:1px solid #cbd0d6;border-radius:6px;background:white;font:14px/1.6 ui-monospace,monospace;tab-size:2}textarea:focus{outline:2px solid #2668d8;outline-offset:2px}.actions{display:flex;gap:10px;margin:16px 0;align-items:center;flex-wrap:wrap}button{font:inherit;padding:9px 16px;border:1px solid #cbd0d6;border-radius:6px;background:white;cursor:pointer}#render{background:#235fca;color:white;border-color:#235fca}button:disabled{opacity:.45;cursor:default}#status{font-size:14px;color:#62666b}#status.error{color:#b42318}#preview{background:white;border:1px solid #dfe2e6;border-radius:6px;min-height:200px;display:flex;align-items:center;justify-content:center;overflow:auto;padding:24px}#preview img{max-width:100%;height:auto}#preview span{color:#8a8f96;font-size:14px}details{margin:20px 0;font-size:14px;color:#62666b}details p{margin:10px 0}iframe{display:none}a{color:#235fca}@media(max-width:600px){body{margin:24px auto}textarea{min-height:300px}}
+#history{margin-left:auto}
+#history-dialog{width:min(460px,calc(100% - 32px));max-height:80vh;padding:20px;border:1px solid #dfe2e6;border-radius:8px;color:inherit}
+#history-dialog::backdrop{background:#20212466}
+.history-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.history-heading h2{font-size:20px;margin:0}
+#history-list{display:grid;gap:8px;margin-top:16px}
+#history-list button{display:flex;align-items:center;gap:16px;text-align:left;background:white;color:inherit;border-color:#cbd0d6}
+#history-list img{width:88px;height:54px;object-fit:contain}
 </style>
 </head>
 <body>
@@ -18,7 +26,14 @@
   \node[below] at (3,0) {$x$};
   \node[left] at (0,2) {$y$};
 \end{tikzpicture}</textarea>
-<div class="actions"><button id="render">Render</button><button id="download" disabled>Download SVG</button><button id="download-png" disabled>Download PNG</button><span id="status" role="status" aria-live="polite">Ready</span></div>
+<div class="actions"><button id="render">Render</button><button id="download" disabled>Download SVG</button><button id="download-png" disabled>Download PNG</button><span id="status" role="status" aria-live="polite">Ready</span><button id="history">History</button></div>
+<dialog id="history-dialog" aria-labelledby="history-title">
+  <div class="history-heading">
+    <h2 id="history-title">History</h2>
+    <form method="dialog"><button type="submit" autofocus>Close</button></form>
+  </div>
+  <div id="history-list" aria-live="polite"></div>
+</dialog>
 <p id="offline-status" role="status" style="font-size:13px;margin:0 0 16px">Caching rendering engine for offline use (0%)</p>
 <div id="preview" aria-label="SVG preview"><span>Your picture will appear here.</span></div>
 <details><summary>Supported TikZ &amp; limitations</summary><p>Use a single <code>tikzpicture</code>, with any macro definitions before it. Basic paths, shapes, colors, arrows, nodes and math labels work. This uses <a href="https://tikzjax.com/">TikZJax</a>, a fixed, limited TeX environment—not a full TeX installation.</p><p>You can paste a full LaTeX document containing exactly one picture. Only the picture is rendered, so definitions and package declarations in the wrapper are ignored. Extra TikZ libraries, PGFPlots, custom packages, external files, system fonts, shell escape and LuaLaTeX/XeLaTeX features are not supported here. Unsupported commands may fail or produce incomplete output. Complex code can take time or freeze the render frame.</p><p>Rendering stays in your browser; your code is not uploaded. On your first online visit, wait for “Ready for offline use” before disconnecting. The app, compiler and all fonts are then stored in this browser. You can reload, render new code and download while offline. Clearing site data or using a private window removes this offline copy. Downloaded SVGs embed fonts, but labels remain text and may vary in editors that ignore embedded fonts.</p></details>
