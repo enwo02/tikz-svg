@@ -22,12 +22,18 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/configure-pages@v5
       - name: Stamp release
         run: |
+          # The first commit after this baseline is v1.0.0.
+          release_count=$(git rev-list --count --first-parent e0128c4d555510e1a7eb163057d8dfa30657ddef..HEAD)
+          version="v1.0.$((release_count - 1))"
           mkdir _site
           cp index.html app.js assets.js runner.js sw.js _site/
           sed -i "s/__TIKZ_RELEASE__/${GITHUB_SHA}/g" _site/index.html _site/sw.js
+          sed -i "s/<!--__TIKZ_VERSION__-->/${version}/g" _site/index.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

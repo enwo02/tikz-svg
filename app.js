@@ -1,6 +1,5 @@
 const code = document.querySelector('#code');
 const release = document.querySelector('meta[name="app-release"]').content;
-document.querySelector('#app-version').textContent = release.startsWith('__') ? 'local' : release.slice(0, 7);
 const updateButton = document.querySelector('#app-update');
 const updateDraftKey = 'tikz-svg-update-draft';
 try {

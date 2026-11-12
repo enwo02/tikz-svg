@@ -30,7 +30,7 @@ Each render runs in a fresh sandboxed frame. The frame is discarded on completio
 
 ## GitHub Pages
 
-In **Settings → Pages**, set **Source** to **GitHub Actions**. Pushes to `main` then deploy the app and stamp it with the commit ID, shown in the bottom-right corner. The browser installs each release's app files together for offline use. If a new release arrives in an open tab, **Update available · Reload** loads it and restores the current TikZ input.
+In **Settings → Pages**, set **Source** to **GitHub Actions**. Pushes to `main` then deploy the app and show its version in the bottom-right corner. Versions start at `v1.0.0`, and each new commit on the first-parent history of `main` increases the patch number. The commit ID still identifies the offline cache. The browser installs each release's app files together for offline use. If a new release arrives in an open tab, **Update available · Reload** loads it and restores the current TikZ input.
 
 Offline service-worker setup runs in the background and times out after 15 seconds. It cannot block rendering after compiler resources finish loading.
 
